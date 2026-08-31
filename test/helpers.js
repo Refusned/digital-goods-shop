@@ -21,9 +21,29 @@ export async function startStack({ worker = false, workerIntervalMs = 120 } = {}
   };
 }
 
+
+/**
+ * Очистка таблиц между сценариями.
+ * Выдача запускается в фоне (её дёргает вебхук и не ждёт), поэтому к моменту очистки
+ * фоновая транзакция может ещё держать строки. Это гонка теста, а не приложения:
+ * ждём и повторяем, вместо того чтобы прятать её паузой наугад.
+ */
+async function truncateWithRetry(sql, attempts = 10) {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      await pool.query(sql);
+      return;
+    } catch (err) {
+      const busy = err.code === '40P01' || err.code === '55P03';   // deadlock, lock_not_available
+      if (!busy || i === attempts) throw err;
+      await sleep(120);
+    }
+  }
+}
+
 /** Полная очистка данных. keysPerSku задаёт размер пула на каждый товар. */
 export async function resetData({ keysPerSku = 5 } = {}) {
-  await pool.query('TRUNCATE ledger_entries, promocode_uses, payment_events, stock_keys, orders RESTART IDENTITY CASCADE');
+  await truncateWithRetry('TRUNCATE ledger_entries, promocode_uses, payment_events, stock_keys, orders RESTART IDENTITY CASCADE');
 
   await pool.query(
     `INSERT INTO products (sku, name, type, price_minor, old_price_minor, currency, image, section, popularity)

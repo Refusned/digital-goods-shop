@@ -162,7 +162,12 @@ function initTabs() {
  */
 async function buy(button, { promocode = null } = {}) {
   const sku = button.dataset.sku;
-  if (!button.dataset.idempotencyKey) {
+
+  // Ключ идемпотентности описывает КОНКРЕТНОЕ действие: тот же товар и тот же промокод.
+  // Поменяли промокод, значит это другой запрос, и ключ нужен новый.
+  const action = `${sku}|${promocode || ''}`;
+  if (button.dataset.idempotencyAction !== action) {
+    button.dataset.idempotencyAction = action;
     button.dataset.idempotencyKey = `${sku}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 

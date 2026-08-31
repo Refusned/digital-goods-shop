@@ -70,8 +70,11 @@ test('ручная повторная выдача идемпотентна', as
   const results = await Promise.all(
     Array.from({ length: 5 }, () => http.post(`/api/admin/orders/${order.id}/deliver`, {})),
   );
-  const codes = new Set(results.map((r) => r.body.order.delivery?.code).filter(Boolean));
-  assert.equal(codes.size, 1, 'пять нажатий "Выдать" дают один и тот же код');
+  assert.ok(results.every((r) => r.status === 200), 'все пять нажатий отвечают 200');
+  const codes = results.map((r) => r.body.order.delivery?.code);
+  assert.ok(codes.every(Boolean), 'в каждом ответе есть выданный код');
+  assert.equal(new Set(codes).size, 1, 'пять нажатий "Выдать" дают один и тот же код');
+  assert.equal(codes[0], 'MANUAL-0001');
 
   const used = await pool.query('SELECT count(*)::int AS n FROM stock_keys WHERE order_id IS NOT NULL');
   assert.equal(used.rows[0].n, 1);

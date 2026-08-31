@@ -158,15 +158,20 @@ apiRouter.post('/api/admin/stock/:sku/restock', requireAdmin, async (req, res, n
       : Array.from({ length: Number(req.body?.count ?? 1) }, () =>
           `RESTOCK-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`);
 
+    // Код глобально уникален: тот же код в другом SKU это тот же товарный ключ,
+    // и он не должен уйти во второй заказ.
     let added = 0;
+    const rejected = [];
     for (const code of codes) {
       const r = await pool.query(
-        'INSERT INTO stock_keys (sku, code) VALUES ($1, $2) ON CONFLICT (sku, code) DO NOTHING RETURNING id',
+        'INSERT INTO stock_keys (sku, code) VALUES ($1, $2) ON CONFLICT (code) DO NOTHING RETURNING id',
         [req.params.sku, code],
       );
-      added += r.rowCount;
+      if (r.rowCount === 1) added += 1;
+      else rejected.push(code);
     }
-    log.info('stock.restocked', { sku: req.params.sku, added });
-    res.json({ sku: req.params.sku, added });
+    log.info('stock.restocked', { sku: req.params.sku, added, rejected: rejected.length });
+    res.status(rejected.length && added === 0 ? 409 : 200)
+       .json({ sku: req.params.sku, added, rejected });
   } catch (err) { next(err); }
 });

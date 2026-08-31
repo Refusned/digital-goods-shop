@@ -65,7 +65,8 @@ export async function deliverOrder(orderId, { trigger = 'unknown' } = {}) {
     );
     await recordDelivery(client, orderId, Number(order.amount_minor));
 
-    log.info('delivery.done', { order_id: orderId, sku: order.sku, code: claimed.rows[0].code, trigger });
+    // Код товара это ценность: в логах оставляем след выдачи, но не сам код.
+    log.info('delivery.done', { order_id: orderId, sku: order.sku, code: maskCode(claimed.rows[0].code), trigger });
     return { outcome: 'delivered', code: claimed.rows[0].code };
   });
 
@@ -77,3 +78,5 @@ export async function deliverOrder(orderId, { trigger = 'unknown' } = {}) {
 
   return result;
 }
+
+const maskCode = (code) => (typeof code === 'string' && code.length > 4 ? `***${code.slice(-4)}` : '***');

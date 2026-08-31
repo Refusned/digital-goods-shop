@@ -36,6 +36,8 @@ async function waitStatus(orderId, statuses, timeoutMs = 15000) {
   return (await get(`/api/orders/${orderId}`)).body;
 }
 
+process.stdout.write('Сценарии выполняются против ЗАПУЩЕННОГО сервера и создают в его базе реальные заказы.\n\n');
+
 const results = [];
 const check = (name, ok, details) => {
   results.push({ name, ok });
@@ -86,9 +88,9 @@ const paid = (orderId, amount) => ({
   const final = await waitStatus(orderId, ['delivered']);
   const keys = await db.query('SELECT count(*)::int AS n FROM stock_keys WHERE order_id = $1', [orderId]);
   check('вебхук раньше заказа и событие не по порядку обработаны корректно',
-    early.body.outcome === 'pending_order' && stale.body.outcome === 'stale'
+    early.body.outcome === 'pending_order' && stale.body.outcome === 'ignored_after_paid'
       && final.status === 'delivered' && keys.rows[0].n === 1,
-    { early: early.body.outcome, stale: stale.body.outcome, status: final.status, keys: keys.rows[0].n });
+    { early: early.body.outcome, late_failed: stale.body.outcome, status: final.status, keys: keys.rows[0].n });
 }
 
 // 4. Пустой пул и восстановление после завоза.
@@ -126,6 +128,51 @@ const paid = (orderId, amount) => ({
   check('промокод с лимитом 3 под 20 параллельными запросами применён ровно 3 раза',
     applied === 3 && rows[0].used_count === 3,
     { applied, used_count: rows[0].used_count, max_uses: rows[0].max_uses });
+}
+
+// 6. Один код не может уйти в два товара, а значит и в два заказа.
+{
+  const code = `RACE-DUP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  const first = await post('/api/admin/stock/KEY-CS2-PRIME/restock', { codes: [code] });
+  const second = await post('/api/admin/stock/KEY-GTA5/restock', { codes: [code] });
+  const { rows } = await db.query('SELECT count(*)::int AS n FROM stock_keys WHERE code = $1', [code]);
+
+  check('один код нельзя завезти в два товара',
+    first.body.added === 1 && second.body.added === 0 && rows[0].n === 1,
+    { first_added: first.body.added, second_added: second.body.added, rows: rows[0].n });
+}
+
+// 7. Лимит промокода не обходится через неуспешную оплату.
+{
+  await db.query(`UPDATE promocodes SET used_count = 0 WHERE code = 'ONCEONLY'`);
+  await db.query(`DELETE FROM promocode_uses WHERE code = 'ONCEONLY'`);
+
+  const { body: first } = await post('/api/orders', { sku: 'KEY-GTA5', promocode: 'ONCEONLY' });
+  await post('/webhook/payment', { ...paid(first.id, first.amount), status: 'failed' });
+  const { body: second } = await post('/api/orders', { sku: 'KEY-GTA5', promocode: 'ONCEONLY' });
+  const { rows } = await db.query(`SELECT used_count FROM promocodes WHERE code = 'ONCEONLY'`);
+
+  check('неуспешная оплата не освобождает одноразовый промокод',
+    first.promocode === 'ONCEONLY' && second.promocode === null && rows[0].used_count === 1,
+    { first: first.promocode, second: second.promocode, used_count: rows[0].used_count });
+}
+
+// 8. Деньги: без суммы или в чужой валюте товар не уходит.
+{
+  const { body: order } = await post('/api/orders', { sku: 'KEY-CS2-PRIME' });
+  const noAmount = await post('/webhook/payment', {
+    event_id: `race_noamt_${order.id}`, order_id: order.id, status: 'paid',
+    currency: 'RUB', created_at: new Date().toISOString(),
+  });
+  const wrongCurrency = await post('/webhook/payment', {
+    event_id: `race_cur_${order.id}`, order_id: order.id, status: 'paid',
+    amount: order.amount, currency: 'USD', created_at: new Date().toISOString(),
+  });
+  const { body: after } = await get(`/api/orders/${order.id}`);
+
+  check('оплата без суммы отклоняется, оплата в чужой валюте не выдаёт ключ',
+    noAmount.status === 400 && wrongCurrency.body.outcome === 'currency_mismatch' && after.status === 'created',
+    { no_amount_http: noAmount.status, wrong_currency: wrongCurrency.body.outcome, order_status: after.status });
 }
 
 // Итог: сверка обязана быть здоровой.

@@ -71,17 +71,46 @@ test('исчерпанный промокод в предпросмотре по
   assert.equal(body.reason, 'limit_reached');
 });
 
-test('неудачная оплата возвращает использование промокода в лимит', async () => {
+test('лимит нельзя обойти цепочкой failed, новый заказ, поздний paid', async () => {
+  // Атака из аудита: неуспешная оплата "освобождает" код, его занимает второй заказ,
+  // а запоздавший paid оживляет первый заказ, у которого скидка уже записана.
+  const { body: first } = await http.post('/api/orders', { sku: 'KEY-GTA5', promocode: 'ONCEONLY' });
+  assert.equal(first.promocode, 'ONCEONLY');
+
+  await http.post('/webhook/payment', { ...paidEvent(first.id, first.amount), status: 'failed' });
+
+  const { body: second } = await http.post('/api/orders', { sku: 'KEY-GTA5', promocode: 'ONCEONLY' });
+  assert.equal(second.promocode, null, 'одноразовый код уже потрачен и второму заказу не достаётся');
+  assert.equal(second.amount, second.base_amount);
+
+  // Поздняя успешная оплата первого заказа проходит: скидка была его законной.
+  await http.post('/webhook/payment', paidEvent(first.id, first.amount));
+  const delivered = await waitFor(async () => {
+    const { body } = await http.get(`/api/orders/${first.id}`);
+    return body.status === 'delivered' ? body : null;
+  });
+  assert.ok(delivered);
+
+  const { rows } = await pool.query(`SELECT used_count, max_uses FROM promocodes WHERE code = 'ONCEONLY'`);
+  assert.equal(rows[0].used_count, 1);
+  assert.ok(rows[0].used_count <= rows[0].max_uses);
+
+  const discounted = await pool.query(
+    `SELECT count(*)::int AS n FROM orders WHERE promocode = 'ONCEONLY' AND paid_at IS NOT NULL`);
+  assert.equal(discounted.rows[0].n, 1, 'скидку получил ровно один оплаченный заказ');
+});
+
+test('неуспешная оплата не освобождает промокод', async () => {
   const { body: order } = await http.post('/api/orders', { sku: 'KEY-CS2-PRIME', promocode: 'ONCEONLY' });
   assert.equal(order.promocode, 'ONCEONLY');
 
   await http.post('/webhook/payment', { ...paidEvent(order.id, order.amount), status: 'failed' });
 
   const { rows } = await pool.query(`SELECT used_count FROM promocodes WHERE code = 'ONCEONLY'`);
-  assert.equal(rows[0].used_count, 0, 'код снова доступен');
+  assert.equal(rows[0].used_count, 1, 'использование остаётся за заказом, иначе лимит обходится');
 
   const { body: next } = await http.post('/api/orders', { sku: 'KEY-CS2-PRIME', promocode: 'ONCEONLY' });
-  assert.equal(next.promocode, 'ONCEONLY');
+  assert.equal(next.promocode, null);
 });
 
 test('оплата со скидкой сходится в журнале денег', async () => {

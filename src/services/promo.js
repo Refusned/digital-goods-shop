@@ -82,13 +82,11 @@ export async function recordPromoUse(client, orderId, promo) {
   );
 }
 
-/** Возврат использования, когда оплата не прошла. Идемпотентен. */
-export async function releasePromo(client, orderId) {
-  const { rows } = await client.query('DELETE FROM promocode_uses WHERE order_id = $1 RETURNING code', [orderId]);
-  if (rows.length === 0) return;
-  await client.query(
-    'UPDATE promocodes SET used_count = GREATEST(used_count - 1, 0) WHERE code = $1',
-    [rows[0].code],
-  );
-  log.info('promo.released', { code: rows[0].code, order_id: orderId });
-}
+/**
+ * Возврата использования при неуспешной оплате намеренно НЕТ.
+ *
+ * Освобождение лимита по событию failed открывает обход: код освобождается, его занимает
+ * другой заказ, а запоздавший paid оживляет первый заказ, у которого скидка уже записана.
+ * В результате код с лимитом 1 оплачивают двое. Возврат использования это часть отмены заказа,
+ * а отмены в контуре задания нет.
+ */

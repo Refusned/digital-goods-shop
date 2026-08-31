@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { pool, withTx, isUniqueViolation } from '../db.js';
 import { newOrderId } from '../ids.js';
 import { log } from '../logger.js';
@@ -31,6 +32,13 @@ export async function createOrder({ sku, promocode = null, idempotencyKey = null
   const currency = product.rows[0].currency;
   const id = orderId || newOrderId();
 
+  // Идемпотентность это повтор ТОГО ЖЕ действия. Отпечаток запроса не даёт молча
+  // подменить новый заказ старым результатом, если по тому же ключу пришли другие параметры.
+  const fingerprint = createHash('sha256')
+    .update(JSON.stringify({ sku, promocode: promocode ? String(promocode).toUpperCase() : null }))
+    .digest('hex')
+    .slice(0, 32);
+
   try {
     return await withTx(async (client) => {
       const promo = await claimPromo(client, promocode, base, id);
@@ -38,10 +46,10 @@ export async function createOrder({ sku, promocode = null, idempotencyKey = null
 
       const { rows } = await client.query(
         `INSERT INTO orders (id, sku, amount_minor, base_amount_minor, discount_minor, promocode,
-                             currency, status, idempotency_key)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'created', $8)
+                             currency, status, idempotency_key, idempotency_fingerprint)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'created', $8, $9)
          RETURNING *`,
-        [id, sku, base - discount, base, discount, promo?.code ?? null, currency, idempotencyKey],
+        [id, sku, base - discount, base, discount, promo?.code ?? null, currency, idempotencyKey, fingerprint],
       );
       await recordPromoUse(client, id, promo);
 
@@ -55,6 +63,11 @@ export async function createOrder({ sku, promocode = null, idempotencyKey = null
     if (isUniqueViolation(err) && idempotencyKey) {
       const { rows } = await pool.query('SELECT * FROM orders WHERE idempotency_key = $1', [idempotencyKey]);
       if (rows.length) {
+        if (rows[0].idempotency_fingerprint && rows[0].idempotency_fingerprint !== fingerprint) {
+          log.warn('order.idempotency_conflict', { order_id: rows[0].id, idempotency_key: idempotencyKey });
+          throw new ApiError(409, 'idempotency_conflict',
+            'Этот Idempotency-Key уже использован для другого запроса');
+        }
         log.info('order.idempotent_hit', { order_id: rows[0].id, idempotency_key: idempotencyKey });
         return { order: rows[0], reused: true, promo_applied: Boolean(rows[0].promocode), promo_requested: Boolean(promocode) };
       }
