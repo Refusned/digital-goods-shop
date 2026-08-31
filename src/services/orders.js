@@ -35,7 +35,11 @@ export async function createOrder({ sku, promocode = null, idempotencyKey = null
   // Идемпотентность это повтор ТОГО ЖЕ действия. Отпечаток запроса не даёт молча
   // подменить новый заказ старым результатом, если по тому же ключу пришли другие параметры.
   const fingerprint = createHash('sha256')
-    .update(JSON.stringify({ sku, promocode: promocode ? String(promocode).toUpperCase() : null }))
+    .update(JSON.stringify({
+      sku,
+      promocode: promocode ? String(promocode).toUpperCase() : null,
+      order_id: orderId,
+    }))
     .digest('hex')
     .slice(0, 32);
 

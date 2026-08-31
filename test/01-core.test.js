@@ -125,6 +125,21 @@ test('тот же Idempotency-Key с другими параметрами -> 40
 
   const same = await http.post('/api/orders', { sku: 'KEY-CS2-PRIME' }, { 'Idempotency-Key': key });
   assert.equal(same.body.id, first.body.id, 'повтор того же запроса по-прежнему возвращает тот же заказ');
+
+  // order_id тоже часть запроса: молча вернуть чужой заказ вместо запрошенного нельзя.
+  const otherOrderId = await http.post(
+    '/api/orders',
+    { sku: 'KEY-CS2-PRIME', order_id: `ord_idem_${Math.random().toString(36).slice(2, 8)}` },
+    { 'Idempotency-Key': key },
+  );
+  assert.equal(otherOrderId.status, 409);
+  assert.equal(otherOrderId.body.error, 'idempotency_conflict');
+});
+
+test('завоз в несуществующий товар -> 404, без внутренней ошибки', async () => {
+  const res = await http.post('/api/admin/stock/NO-SUCH-SKU/restock', { count: 1 });
+  assert.equal(res.status, 404);
+  assert.equal(res.body.error, 'product_not_found');
 });
 
 test('админка закрыта без токена', async () => {

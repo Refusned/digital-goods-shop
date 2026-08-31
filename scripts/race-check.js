@@ -10,8 +10,24 @@ import pg from 'pg';
 
 const base = process.env.API_URL || `http://127.0.0.1:${process.env.PORT || 3020}`;
 const adminToken = process.env.ADMIN_TOKEN || 'admin-token';
-const db = new pg.Client({ connectionString: process.env.DATABASE_URL || 'postgres://shop:shop@localhost:5443/shop' });
+const dbUrl = process.env.DATABASE_URL || 'postgres://shop:shop@localhost:5443/shop';
+
+// Скрипт создаёт заказы, расходует ключи и трогает счётчики промокодов, поэтому на базе
+// с ценными данными он работать не должен. Осознанный запуск разрешается флагом.
+if (process.env.ALLOW_DESTRUCTIVE_RACE !== '1') {
+  process.stderr.write(
+    'npm run race меняет данные: создаёт заказы, расходует ключи и сбрасывает счётчики промокодов.\n' +
+    'Запускайте его на демонстрационной базе и подтвердите намерение:\n' +
+    '  ALLOW_DESTRUCTIVE_RACE=1 npm run race\n',
+  );
+  process.exit(2);
+}
+
+const db = new pg.Client({ connectionString: dbUrl });
 await db.connect();
+
+/** Код товара это ценность: в вывод попадает только хвост. */
+const maskCode = (code) => (typeof code === 'string' && code.length > 4 ? `***${code.slice(-4)}` : '***');
 
 const post = (path, body) =>
   fetch(base + path, {
@@ -57,7 +73,7 @@ const paid = (orderId, amount) => ({
   const keys = await db.query('SELECT count(*)::int AS n FROM stock_keys WHERE order_id = $1', [order.id]);
   check('50 параллельных вебхуков -> один факт выдачи, один ключ',
     final.status === 'delivered' && keys.rows[0].n === 1,
-    { order: order.id, status: final.status, keys: keys.rows[0].n, code: final.delivery?.code });
+    { order: order.id, status: final.status, keys: keys.rows[0].n, code: maskCode(final.delivery?.code) });
 }
 
 // 2. Повтор того же события.
@@ -111,7 +127,7 @@ const paid = (orderId, amount) => ({
 
   check('пустой пул -> восстановимое состояние -> после завоза ровно один ключ',
     stuck.status === 'out_of_stock' && recovered.status === 'delivered' && keys.rows[0].n === 1,
-    { emptied: free.rowCount, stuck: stuck.status, recovered: recovered.status, code: recovered.delivery?.code });
+    { emptied: free.rowCount, stuck: stuck.status, recovered: recovered.status, code: maskCode(recovered.delivery?.code) });
 }
 
 // 5. Лимит промокода под параллельными запросами.

@@ -153,6 +153,9 @@ apiRouter.post('/api/admin/orders/:id/deliver', requireAdmin, async (req, res, n
 /** Пополнение пула ключей. Дубли кодов игнорируются. */
 apiRouter.post('/api/admin/stock/:sku/restock', requireAdmin, async (req, res, next) => {
   try {
+    const product = await pool.query('SELECT 1 FROM products WHERE sku = $1', [req.params.sku]);
+    if (product.rowCount === 0) return res.status(404).json({ error: 'product_not_found' });
+
     const codes = Array.isArray(req.body?.codes) && req.body.codes.length
       ? req.body.codes
       : Array.from({ length: Number(req.body?.count ?? 1) }, () =>
