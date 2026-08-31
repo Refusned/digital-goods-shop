@@ -1,0 +1,269 @@
+/* Витрина магазина цифровых товаров. Структура и палитра сняты с макета:
+   светло-серый фон, белые карточки со скруглением, чёрные кнопки действия, зелёная цена. */
+
+:root {
+  --bg: #f2f2f4;
+  --surface: #ffffff;
+  --ink: #14161a;
+  --ink-muted: #6b7280;
+  --line: #e6e7eb;
+  --accent: #14161a;
+  --price: #17a34a;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --shadow: 0 1px 2px rgba(20, 22, 26, .06);
+  --shadow-hover: 0 10px 24px rgba(20, 22, 26, .12);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; cursor: pointer; }
+
+.shell { max-width: 1180px; margin: 0 auto; padding: 0 16px 64px; }
+
+/* --- Шапка ---------------------------------------------------------------- */
+
+.header {
+  position: sticky; top: 0; z-index: 40;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.header__inner {
+  max-width: 1180px; margin: 0 auto; padding: 12px 16px;
+  display: flex; align-items: center; gap: 16px;
+}
+.brand { font-weight: 800; letter-spacing: -.02em; font-size: 18px; }
+
+.catalog-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--accent); color: #fff; border: 0;
+  padding: 10px 18px; border-radius: 10px; font-weight: 600;
+  transition: transform .15s ease, opacity .15s ease;
+}
+.catalog-btn:hover { opacity: .9; }
+.catalog-btn:active { transform: scale(.98); }
+.catalog-btn__grid {
+  display: grid; grid-template-columns: repeat(2, 5px); gap: 2px;
+}
+.catalog-btn__grid i { width: 5px; height: 5px; background: #fff; border-radius: 1px; display: block; }
+
+.search {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: 2px solid var(--ink);
+  border-radius: 12px; padding: 4px 4px 4px 14px;
+}
+.search input { flex: 1; border: 0; outline: none; font: inherit; background: transparent; padding: 8px 0; }
+.search__fav, .search__go {
+  width: 38px; height: 34px; border: 0; border-radius: 8px;
+  display: grid; place-items: center;
+}
+.search__fav { background: #eef0f4; color: #3b82f6; }
+.search__go { background: var(--accent); color: #fff; }
+.profile {
+  width: 40px; height: 40px; border-radius: 10px; border: 0;
+  background: #eef0f4; display: grid; place-items: center;
+}
+
+/* --- Выпадающее меню каталога --------------------------------------------- */
+
+.catalog-menu {
+  display: none;
+  position: absolute; left: 0; right: 0; top: 100%;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+  box-shadow: 0 18px 30px rgba(20, 22, 26, .08);
+}
+.catalog-menu.is-open { display: block; }
+.catalog-menu__inner {
+  max-width: 1180px; margin: 0 auto; padding: 16px;
+  display: grid; grid-template-columns: 260px 1fr; gap: 24px;
+}
+.catalog-menu__aside { border-right: 1px solid var(--line); padding-right: 12px; }
+.catalog-menu__cat {
+  width: 100%; text-align: left; background: transparent; border: 0;
+  padding: 12px 14px; border-radius: 10px; color: var(--ink);
+  display: flex; justify-content: space-between; align-items: center;
+  transition: background .15s ease;
+}
+.catalog-menu__cat:hover, .catalog-menu__cat.is-active { background: #f4f5f7; }
+.catalog-menu__cols { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; }
+.catalog-menu__col h4 { margin: 0 0 12px; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.catalog-menu__col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+.catalog-menu__col a { color: #33363d; font-size: 14px; }
+.catalog-menu__col a:hover { color: var(--ink); text-decoration: underline; }
+
+/* --- Баннер-карусель ------------------------------------------------------ */
+
+.banner { position: relative; margin: 16px 0; border-radius: var(--radius-lg); overflow: hidden; }
+.banner__track { display: flex; transition: transform .45s cubic-bezier(.4, 0, .2, 1); }
+.banner__slide {
+  min-width: 100%; height: 260px; display: flex; flex-direction: column; justify-content: center;
+  padding: 0 48px; color: #fff; gap: 10px;
+}
+.banner__slide h2 { margin: 0; font-size: 30px; letter-spacing: -.02em; }
+.banner__slide p { margin: 0; opacity: .82; max-width: 460px; }
+.banner__nav {
+  position: absolute; top: 16px; right: 16px; display: flex; gap: 8px;
+  background: rgba(255, 255, 255, .92); border-radius: 999px; padding: 6px;
+}
+.banner__nav button {
+  width: 34px; height: 34px; border: 0; border-radius: 999px; background: transparent;
+  display: grid; place-items: center; transition: background .15s ease;
+}
+.banner__nav button:hover { background: #eceef2; }
+.banner__dots { position: absolute; right: 24px; bottom: 18px; display: flex; gap: 6px; }
+.banner__dots button {
+  width: 22px; height: 4px; border: 0; border-radius: 999px;
+  background: rgba(255, 255, 255, .45); transition: background .2s ease, width .2s ease;
+}
+.banner__dots button.is-active { background: #fff; width: 30px; }
+
+/* --- Ряд сервисов --------------------------------------------------------- */
+
+.services {
+  background: var(--surface); border-radius: var(--radius-lg); padding: 16px;
+  display: grid; grid-template-columns: repeat(11, 1fr); gap: 8px; margin-bottom: 12px;
+}
+.service {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 8px 4px; border-radius: var(--radius); background: transparent;
+  border: 0; transition: background .18s ease, transform .18s ease;
+}
+.service img { width: 56px; height: 56px; border-radius: 16px; transition: transform .18s ease, box-shadow .18s ease; }
+.service span { font-size: 12px; color: #33363d; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.service:hover { background: #f4f5f7; }
+.service:hover img { transform: translateY(-3px) scale(1.04); box-shadow: 0 8px 18px rgba(20, 22, 26, .18); }
+.service--more img { background: #eef0f4; }
+
+/* --- Пополнение Steam ----------------------------------------------------- */
+
+.topup {
+  background: var(--surface); border-radius: var(--radius-lg); padding: 14px;
+  display: grid; grid-template-columns: auto 210px 1fr 1fr auto; gap: 12px; align-items: center;
+}
+.topup__logo { width: 56px; height: 56px; border-radius: 16px; }
+.topup__title { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.badge { background: #e8f7ee; color: var(--price); font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.promo-toggle {
+  margin-top: 6px; background: #f4f5f7; border: 0; border-radius: 999px;
+  padding: 6px 12px; font-size: 13px; color: #33363d; display: inline-flex; gap: 6px; align-items: center;
+}
+.field {
+  background: #f7f8fa; border: 1px solid var(--line); border-radius: 12px;
+  padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+}
+.field input { border: 0; background: transparent; outline: none; font: inherit; width: 100%; }
+.field__label { font-size: 11px; color: var(--ink-muted); }
+.currency { display: flex; gap: 4px; background: #eef0f4; border-radius: 10px; padding: 3px; }
+.currency button {
+  border: 0; background: transparent; width: 34px; height: 30px; border-radius: 8px;
+  color: #6b7280; font-weight: 600; transition: background .15s ease, color .15s ease;
+}
+.currency button.is-active { background: var(--accent); color: #fff; }
+.btn-primary {
+  background: var(--accent); color: #fff; border: 0; border-radius: 12px;
+  padding: 15px 26px; font-weight: 700; transition: transform .15s ease, opacity .15s ease;
+}
+.btn-primary:hover { opacity: .9; }
+.btn-primary:active { transform: scale(.985); }
+.btn-primary[disabled] { opacity: .55; cursor: progress; }
+
+.promo-row { grid-column: 1 / -1; display: none; gap: 10px; align-items: center; }
+.promo-row.is-open { display: flex; }
+.promo-row .field { flex: 0 0 260px; }
+.promo-hint { font-size: 13px; color: var(--ink-muted); }
+.promo-hint.is-ok { color: var(--price); }
+.promo-hint.is-bad { color: #dc2626; }
+
+/* --- Секция товаров ------------------------------------------------------- */
+
+.section-head { display: flex; align-items: center; gap: 12px; margin: 28px 0 14px; }
+.section-head h3 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.tab {
+  border: 1px solid var(--line); background: var(--surface); color: #4b5058;
+  border-radius: 999px; padding: 7px 14px; font-size: 13px; transition: all .15s ease;
+}
+.tab:hover { border-color: #c9ccd3; }
+.tab.is-active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+.card {
+  background: var(--surface); border-radius: var(--radius); overflow: hidden;
+  box-shadow: var(--shadow); border: 1px solid transparent;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  display: flex; flex-direction: column;
+}
+.card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); border-color: #d8dae0; }
+.card__img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; display: block; }
+.card__body { padding: 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.card__name { font-size: 13px; line-height: 1.35; color: #24272d; min-height: 36px; }
+.card__prices { display: flex; align-items: baseline; gap: 8px; }
+.card__price { color: var(--price); font-weight: 700; font-size: 17px; }
+.card__old { color: #9aa0a8; text-decoration: line-through; font-size: 13px; }
+.card__stock { font-size: 12px; color: var(--ink-muted); }
+.card__stock--empty { color: #dc2626; }
+.card__buy {
+  margin-top: auto; background: var(--accent); color: #fff; border: 0;
+  border-radius: 10px; padding: 11px; font-weight: 600; transition: opacity .15s ease, transform .15s ease;
+}
+.card__buy:hover { opacity: .9; }
+.card__buy:active { transform: scale(.985); }
+.card__buy[disabled] { opacity: .5; cursor: not-allowed; }
+
+/* --- Страница заказа и админка -------------------------------------------- */
+
+.panel { background: var(--surface); border-radius: var(--radius-lg); padding: 22px; margin-top: 18px; }
+.panel h1 { margin: 0 0 4px; font-size: 24px; }
+.panel h2 { margin: 0 0 12px; font-size: 18px; }
+.muted { color: var(--ink-muted); }
+.status {
+  display: inline-flex; align-items: center; gap: 8px; font-weight: 700;
+  padding: 6px 14px; border-radius: 999px; font-size: 14px;
+}
+.status[data-status="created"] { background: #eef0f4; color: #4b5058; }
+.status[data-status="paid"], .status[data-status="delivering"] { background: #fff5e0; color: #b45309; }
+.status[data-status="delivered"] { background: #e8f7ee; color: var(--price); }
+.status[data-status="payment_failed"] { background: #fdeaea; color: #dc2626; }
+.status[data-status="out_of_stock"], .status[data-status="delivery_failed"] { background: #fdf0e6; color: #c2410c; }
+
+.code-box {
+  margin-top: 14px; padding: 18px; border-radius: var(--radius);
+  background: #0f1115; color: #7ee2a8; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 22px; letter-spacing: .08em; text-align: center;
+}
+.rows { display: grid; gap: 8px; margin: 16px 0; }
+.row { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.btn-ghost {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 18px; font-weight: 600; transition: border-color .15s ease;
+}
+.btn-ghost:hover { border-color: #b9bdc6; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--ink-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.pill { background: #eef0f4; border-radius: 999px; padding: 3px 10px; font-size: 12px; }
+
+@media (max-width: 1000px) {
+  .services { grid-template-columns: repeat(6, 1fr); }
+  .cards { grid-template-columns: repeat(3, 1fr); }
+  .topup { grid-template-columns: 1fr 1fr; }
+  .catalog-menu__inner { grid-template-columns: 1fr; }
+  .catalog-menu__cols { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .services { grid-template-columns: repeat(4, 1fr); }
+  .cards { grid-template-columns: repeat(2, 1fr); }
+  .topup { grid-template-columns: 1fr; }
+  .banner__slide { padding: 0 24px; height: 220px; }
+}

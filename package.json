@@ -1,0 +1,20 @@
+{
+  "name": "digital-goods-shop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Магазин цифровых товаров: витрина по макету, покупка, однократная выдача ключа под гонками, промокоды",
+  "type": "module",
+  "engines": { "node": ">=20.11" },
+  "scripts": {
+    "migrate": "node scripts/migrate.js",
+    "seed": "node scripts/seed.js",
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "race": "node scripts/race-check.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}

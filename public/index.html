@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Магазин цифровых товаров</title>
+  <link rel="icon" href="assets/svc-steam.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header__inner">
+      <span class="brand">DIGITAL</span>
+
+      <!-- Интерактив 2: кнопка открывает и закрывает меню каталога -->
+      <button class="catalog-btn" id="catalogBtn" aria-expanded="false" aria-controls="catalogMenu">
+        <span class="catalog-btn__grid" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        Каталог
+      </button>
+
+      <form class="search" role="search" onsubmit="return false">
+        <input type="search" placeholder="Игра, приложение или услуга..." aria-label="Поиск">
+        <button class="search__fav" type="button" aria-label="Избранное">&#9829;</button>
+        <button class="search__go" type="submit" aria-label="Найти">&#9906;</button>
+      </form>
+
+      <button class="profile" aria-label="Профиль">&#128100;</button>
+    </div>
+
+    <div class="catalog-menu" id="catalogMenu">
+      <div class="catalog-menu__inner">
+        <aside class="catalog-menu__aside">
+          <button class="catalog-menu__cat is-active">Игры и игровые сервисы <span>&rsaquo;</span></button>
+          <button class="catalog-menu__cat">Игровые ценности <span>&rsaquo;</span></button>
+          <button class="catalog-menu__cat">Мобильные игры <span>&rsaquo;</span></button>
+          <button class="catalog-menu__cat">Сервисы и соцсети <span>&rsaquo;</span></button>
+          <button class="catalog-menu__cat">Программы <span>&rsaquo;</span></button>
+        </aside>
+        <div class="catalog-menu__cols">
+          <div class="catalog-menu__col">
+            <h4>Steam <span>&rsaquo;</span></h4>
+            <ul>
+              <li><a href="#">Игры и DLC</a></li><li><a href="#">Пополнение баланса</a></li>
+              <li><a href="#">Подарочные карты</a></li><li><a href="#">Коллекционные карточки</a></li>
+              <li><a href="#">Смена региона</a></li>
+            </ul>
+          </div>
+          <div class="catalog-menu__col">
+            <h4>PlayStation <span>&rsaquo;</span></h4>
+            <ul>
+              <li><a href="#">Игры и DLC</a></li><li><a href="#">Пополнение баланса</a></li>
+              <li><a href="#">Новые аккаунты</a></li><li><a href="#">PS Plus</a></li><li><a href="#">EA Play</a></li>
+            </ul>
+          </div>
+          <div class="catalog-menu__col">
+            <h4>Xbox <span>&rsaquo;</span></h4>
+            <ul>
+              <li><a href="#">Игры и DLC</a></li><li><a href="#">Пополнение баланса</a></li>
+              <li><a href="#">Новые аккаунты</a></li><li><a href="#">Xbox Game Pass</a></li><li><a href="#">Услуги</a></li>
+            </ul>
+          </div>
+          <div class="catalog-menu__col">
+            <h4>Nintendo <span>&rsaquo;</span></h4>
+            <ul>
+              <li><a href="#">Игры и DLC</a></li><li><a href="#">Подарочные карты</a></li>
+              <li><a href="#">Новые аккаунты</a></li><li><a href="#">NS Online</a></li>
+            </ul>
+          </div>
+          <div class="catalog-menu__col">
+            <h4>Battle.net <span>&rsaquo;</span></h4>
+            <ul>
+              <li><a href="#">World of Warcraft</a></li><li><a href="#">Подарочные карты</a></li>
+              <li><a href="#">Прямое пополнение</a></li><li><a href="#">Новые аккаунты</a></li>
+              <li><a href="#">Смена региона</a></li>
+            </ul>
+          </div>
+          <div class="catalog-menu__col">
+            <h4>Подборки <span>&rsaquo;</span></h4>
+            <ul>
+              <li><a href="#">Скидки 90%</a></li><li><a href="#">Популярные издатели</a></li>
+              <li><a href="#">Лучшие серии игр</a></li><li><a href="#">Steam Deck</a></li>
+              <li><a href="#">Bundle-наборы</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <!-- Интерактив 1: карусель со стрелками, автопрокруткой и активными точками -->
+    <section class="banner" id="banner" aria-roledescription="карусель">
+      <div class="banner__track" id="bannerTrack"></div>
+      <div class="banner__nav">
+        <button type="button" id="bannerPrev" aria-label="Предыдущий слайд">&larr;</button>
+        <button type="button" id="bannerNext" aria-label="Следующий слайд">&rarr;</button>
+      </div>
+      <div class="banner__dots" id="bannerDots"></div>
+    </section>
+
+    <!-- Интерактив 4: иконки сервисов плавно выделяются при наведении -->
+    <section class="services" id="services" aria-label="Сервисы"></section>
+
+    <section class="topup">
+      <img class="topup__logo" src="assets/svc-steam.svg" alt="Steam">
+      <div>
+        <div class="topup__title">Пополнение Steam <span class="badge">5%</span></div>
+        <button class="promo-toggle" id="promoToggle" aria-expanded="false">Ввести промокод &#9662;</button>
+      </div>
+      <label class="field">
+        <span aria-hidden="true">&#128100;</span>
+        <input id="steamLogin" placeholder="Логин Steam" aria-label="Логин Steam">
+        <span class="muted" title="Логин нужен только для примера">&#9432;</span>
+      </label>
+      <label class="field">
+        <span aria-hidden="true">&#8381;</span>
+        <span>
+          <span class="field__label">Сумма</span>
+          <input id="topupAmount" value="500" readonly aria-label="Сумма пополнения">
+        </span>
+        <!-- Интерактив 3: переключатель валют меняет активное состояние, пересчёта нет -->
+        <span class="currency" id="currency" role="group" aria-label="Валюта">
+          <button type="button" data-cur="$" class="is-active">$</button>
+          <button type="button" data-cur="T">&#8376;</button>
+          <button type="button" data-cur="R">&#8381;</button>
+        </span>
+      </label>
+      <button class="btn-primary" id="topupBuy" data-sku="STEAM-TOPUP-500">Оплатить 500&#8381;</button>
+
+      <div class="promo-row" id="promoRow">
+        <label class="field">
+          <span aria-hidden="true">%</span>
+          <input id="promoInput" placeholder="Промокод" aria-label="Промокод" autocomplete="off">
+        </label>
+        <button class="btn-ghost" type="button" id="promoCheck">Проверить</button>
+        <span class="promo-hint" id="promoHint">Скидку считает сервер. Пример: WELCOME10, LIMIT3, ONCEONLY.</span>
+      </div>
+    </section>
+
+    <div class="section-head">
+      <h3>Популярные товары</h3>
+      <div class="tabs" id="tabs">
+        <button class="tab is-active" data-type="all">Донат</button>
+        <button class="tab" data-type="subscription">Подписки</button>
+        <button class="tab" data-type="topup">Предметы</button>
+        <button class="tab" data-type="giftcard">Аккаунты</button>
+        <button class="tab" data-type="key">Ключи</button>
+      </div>
+    </div>
+
+    <!-- Интерактив 5: карточки приподнимаются и подсвечиваются при наведении -->
+    <section class="cards" id="cards" aria-live="polite"></section>
+
+    <p class="muted" style="margin-top:28px">
+      Отзывы и футер по заданию не верстаются.
+      <a href="admin.html" style="text-decoration:underline">Админка</a>
+    </p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

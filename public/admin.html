@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Админка</title>
+  <link rel="icon" href="assets/svc-steam.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header__inner">
+      <a class="brand" href="index.html">DIGITAL</a>
+      <span class="muted">админка</span>
+      <label class="field" style="margin-left:auto;max-width:280px">
+        <span class="field__label">Токен</span>
+        <input id="token" placeholder="ADMIN_TOKEN" aria-label="Токен админки">
+      </label>
+      <button class="btn-ghost" id="reload">Обновить</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="panel">
+      <h2>Оплачен, но не выдан</h2>
+      <p class="muted">Заказы, за которые деньги получены, а код ещё нет. Повторная выдача идемпотентна.</p>
+      <div id="paidNotDelivered"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Выдан, но не оплачен</h2>
+      <p class="muted">Этот список обязан быть пустым: код не может уйти без оплаты.</p>
+      <div id="deliveredNotPaid"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Остатки ключей</h2>
+      <div id="stock"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Промокоды</h2>
+      <div id="promocodes"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Журнал денежных движений</h2>
+      <div id="ledger"></div>
+    </section>
+  </main>
+
+  <script src="admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "note": "Промокоды для этапа 4. Лимит должен соблюдаться даже под параллельными запросами. Скидку считает сервер.",
+  "promocodes": [
+    { "code": "WELCOME10", "type": "percent", "value": 10,  "max_uses": 100 },
+    { "code": "GG500",     "type": "amount",  "value": 500, "currency": "RUB", "max_uses": 20 },
+    { "code": "LIMIT3",    "type": "percent", "value": 25,  "max_uses": 3 },
+    { "code": "ONCEONLY",  "type": "percent", "value": 50,  "max_uses": 1 }
+  ]
+}
