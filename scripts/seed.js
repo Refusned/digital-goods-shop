@@ -17,7 +17,7 @@ const sections = ['popular', 'recommended', 'other'];
 let i = 0;
 for (const p of catalog.products) {
   const section = sections[Math.floor(i / 4) % sections.length];
-  const image = (p.image || '').replace(/\.png$/, '.svg');
+  const image = p.image || '';
   await pool.query(
     `INSERT INTO products (sku, name, type, price_minor, old_price_minor, currency, image, section, popularity)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)

@@ -13,12 +13,12 @@ const api = {
 /* --- 1. Баннер-карусель ---------------------------------------------------- */
 
 const SLIDES = [
-  { title: 'Ключи и пополнения за минуту', text: 'Код приходит автоматически сразу после оплаты.', bg: 'linear-gradient(120deg,#111827,#2a475e)' },
-  { title: 'Подписки со скидкой', text: 'Discord Nitro, YouTube Premium, Spotify.', bg: 'linear-gradient(120deg,#3b1d5e,#7a3ff2)' },
-  { title: 'Гифт-карты PSN и Xbox', text: 'Пополняй баланс без карты российского банка.', bg: 'linear-gradient(120deg,#0d2a54,#0070d1)' },
-  { title: 'Промокод WELCOME10', text: 'Минус 10% на первый заказ.', bg: 'linear-gradient(120deg,#14532d,#17a34a)' },
-  { title: 'Игровая валюта', text: 'Robux, UC, алмазы: выдача из пула ключей.', bg: 'linear-gradient(120deg,#5a1a1a,#e2231a)' },
-  { title: 'Поддержка 24/7', text: 'Если код не подошёл, разберёмся и заменим.', bg: 'linear-gradient(120deg,#1f2937,#4b5563)' },
+  { title: 'Ключи и пополнения за минуту', text: 'Код приходит автоматически сразу после оплаты.', image: 'assets/banner-01.webp', position: 'center 58%' },
+  { title: 'Подписки со скидкой', text: 'Discord Nitro, YouTube Premium, Spotify.', image: 'assets/banner-02.webp', position: 'center 48%' },
+  { title: 'Гифт-карты PSN и Xbox', text: 'Пополняй баланс без карты российского банка.', image: 'assets/banner-03.webp', position: 'center 54%' },
+  { title: 'Промокод WELCOME10', text: 'Минус 10% на первый заказ.', image: 'assets/banner-04.webp', position: 'center' },
+  { title: 'Игровая валюта', text: 'Robux, UC, алмазы: выдача из пула ключей.', image: 'assets/banner-05.webp', position: 'center 56%' },
+  { title: 'Поддержка 24/7', text: 'Если код не подошёл, разберёмся и заменим.', image: 'assets/banner-06.webp', position: 'center 52%' },
 ];
 
 function initBanner() {
@@ -27,7 +27,7 @@ function initBanner() {
   let index = 0;
 
   track.innerHTML = SLIDES.map((s) => `
-    <article class="banner__slide" style="background:${s.bg}">
+    <article class="banner__slide" style="--banner-image:url('${s.image}');--banner-position:${s.position}">
       <h2>${s.title}</h2><p>${s.text}</p>
     </article>`).join('');
   dots.innerHTML = SLIDES.map((_, i) => `<button type="button" aria-label="Слайд ${i + 1}"></button>`).join('');
@@ -93,20 +93,21 @@ function initCurrency() {
 /* --- 4. Ряд сервисов ------------------------------------------------------- */
 
 const SERVICES = [
-  ['Steam', 'svc-steam'], ['Telegram', 'svc-telegram'], ['Roblox', 'svc-roblox'],
-  ['Brawl Stars', 'svc-brawl'], ['PUBG Mobile', 'svc-pubg'], ['App Store', 'svc-appstore'],
-  ['ChatGPT', 'svc-chatgpt'], ['PlayStation', 'svc-playstation'], ['TikTok', 'svc-tiktok'],
-  ['Mobile Legends', 'svc-mlbb'],
+  ['Steam', 'service-steam.svg', 'steam'], ['Telegram', 'service-telegram.svg', 'telegram'],
+  ['Roblox', 'service-roblox.svg', 'roblox'], ['Brawl Stars', 'service-brawl.svg', 'brawl'],
+  ['PUBG Mobile', 'service-pubg.svg', 'pubg'], ['App Store', 'service-appstore.svg', 'appstore'],
+  ['ChatGPT', 'service-chatgpt.svg', 'chatgpt'], ['PlayStation', 'service-playstation.svg', 'playstation'],
+  ['TikTok', 'service-tiktok.svg', 'tiktok'], ['Mobile Legends', 'service-mlbb.svg', 'mlbb'],
 ];
 
 function initServices() {
   document.getElementById('services').innerHTML =
-    SERVICES.map(([name, icon]) => `
+    SERVICES.map(([name, icon, key]) => `
       <button class="service" type="button" title="${name}">
-        <img src="assets/${icon}.svg" alt="${name}"><span>${name}</span>
+        <img class="service__icon service__icon--${key}" src="assets/${icon}" alt="${name}" width="128" height="128"><span>${name}</span>
       </button>`).join('') +
     `<button class="service service--more" type="button">
-       <img src="assets/svc-appstore.svg" alt=""><span>ещё 841</span>
+       <span class="service__more" aria-hidden="true">•••</span><span>ещё 841</span>
      </button>`;
 }
 
@@ -131,7 +132,7 @@ function renderCards(type) {
 
   box.innerHTML = items.map((item) => `
     <article class="card">
-      <img class="card__img" src="${item.image || 'assets/steam.svg'}" alt="${item.name}" loading="lazy">
+      <img class="card__img" src="${item.image || 'assets/product-steam.webp'}" alt="${item.name}" width="640" height="400" loading="lazy">
       <div class="card__body">
         <div class="card__name">${item.name}</div>
         <div class="card__prices">
