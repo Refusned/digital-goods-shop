@@ -76,7 +76,14 @@ test('оплата без суммы, без валюты или с мусорн
   const badAmount = await http.post('/webhook/payment', { ...base, event_id: 'e3_' + order.id, amount: 'not-a-number', currency: 'RUB' });
   const noDate = await http.post('/webhook/payment', { event_id: 'e4_' + order.id, order_id: order.id, status: 'paid', amount: order.amount, currency: 'RUB' });
 
-  for (const res of [noAmount, noCurrency, badAmount, noDate]) assert.equal(res.status, 400);
+  const numericDate = await http.post('/webhook/payment', { ...paidEvent(order.id, order.amount), created_at: 0 });
+  const failedWithoutMoney = await http.post('/webhook/payment', {
+    event_id: 'e5_' + order.id, order_id: order.id, status: 'failed', created_at: new Date().toISOString(),
+  });
+
+  for (const res of [noAmount, noCurrency, badAmount, noDate, numericDate, failedWithoutMoney]) {
+    assert.equal(res.status, 400);
+  }
 
   const { body } = await http.get(`/api/orders/${order.id}`);
   assert.equal(body.status, 'created');

@@ -6,19 +6,21 @@ import { applyEvent } from './services/payments.js';
 
 /**
  * Фоновое восстановление: доводит систему до целевого состояния независимо от того,
- * что случилось с процессом в момент вебхука. Работа забирается через SKIP LOCKED,
- * поэтому несколько экземпляров сервиса не дублируют друг друга.
+ * что случилось с процессом в момент вебхука. Заказы забираются в аренду через
+ * FOR UPDATE SKIP LOCKED со сдвигом next_attempt_at, поэтому несколько экземпляров
+ * сервиса делят очередь, а не молотят одно и то же.
  */
 export function startWorker({ intervalMs = config.worker.intervalMs } = {}) {
   let stopped = false;
   let running = false;
+  const leaseMs = Math.max(2 * intervalMs, 1000);
 
   const tick = async () => {
     if (stopped || running) return;
     running = true;
     try {
       await applyOrphanEvents();
-      await pushStuckOrders();
+      await pushStuckOrders(leaseMs);
     } catch (err) {
       log.error('worker.tick_failed', { error: err.message });
     } finally {
@@ -46,18 +48,31 @@ async function applyOrphanEvents() {
   }
 }
 
-/** Заказы, застрявшие между оплатой и выдачей. */
-async function pushStuckOrders() {
+/**
+ * Заказы, застрявшие между оплатой и выдачей.
+ * Выборка и аренда идут одним запросом: SKIP LOCKED разводит экземпляры сервиса,
+ * а сдвиг next_attempt_at не даёт соседу схватить тот же заказ, пока мы с ним работаем.
+ */
+async function pushStuckOrders(leaseMs) {
   const { rows } = await pool.query(
-    `SELECT id FROM orders
-      WHERE (next_attempt_at IS NULL OR next_attempt_at <= now())
-        AND (
-              (status IN ('paid', 'delivering', 'delivery_failed') AND attempts < $1)
-              -- "нет ключей" ждёт завоза сколько нужно: лимит попыток тут не применяется
-              OR status = 'out_of_stock'
-            )
-      ORDER BY paid_at LIMIT 20`,
-    [config.worker.maxAttempts],
+    `WITH picked AS (
+        SELECT id FROM orders
+         WHERE (next_attempt_at IS NULL OR next_attempt_at <= now())
+           AND (
+                 (status IN ('paid', 'delivering', 'delivery_failed') AND attempts < $1)
+                 -- "нет ключей" ждёт завоза сколько нужно: лимит попыток тут не применяется
+                 OR status = 'out_of_stock'
+               )
+         ORDER BY paid_at
+         FOR UPDATE SKIP LOCKED
+         LIMIT 20
+     )
+     UPDATE orders o
+        SET next_attempt_at = now() + ($2 || ' milliseconds')::interval
+       FROM picked
+      WHERE o.id = picked.id
+     RETURNING o.id`,
+    [config.worker.maxAttempts, String(leaseMs)],
   );
   for (const row of rows) {
     const result = await deliverOrder(row.id, { trigger: 'worker.stuck' });

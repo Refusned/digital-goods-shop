@@ -4,13 +4,15 @@
   "private": true,
   "description": "Магазин цифровых товаров: витрина по макету, покупка, однократная выдача ключа под гонками, промокоды",
   "type": "module",
-  "engines": { "node": ">=20.11" },
+  "engines": {
+    "node": ">=20.11"
+  },
   "scripts": {
     "migrate": "node scripts/migrate.js",
     "seed": "node scripts/seed.js",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "test": "node scripts/test.js",
     "race": "node scripts/race-check.js"
   },
   "dependencies": {
