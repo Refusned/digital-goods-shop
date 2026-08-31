@@ -13,3 +13,20 @@ services:
       interval: 2s
       timeout: 3s
       retries: 20
+
+  # Приложение поднимается профилем: по умолчанию нужен только PostgreSQL,
+  # чтобы гонять тесты и сервер локально, а полный стек это `--profile app`.
+  app:
+    profiles: ["app"]
+    build: .
+    environment:
+      PORT: 3020
+      DATABASE_URL: postgres://shop:shop@db:5432/shop
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-token}
+      WORKER_ENABLED: "1"
+    ports:
+      - "3020:3020"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped

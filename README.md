@@ -20,6 +20,14 @@ npm start                     # http://localhost:3020
 Открыть: витрина `http://localhost:3020`, админка `http://localhost:3020/admin.html` (токен `admin-token` из `.env`).
 Postgres можно взять свой, достаточно поправить `DATABASE_URL`.
 
+Полностью в Docker, без локального Node:
+
+```bash
+docker compose --profile app up -d --build
+docker compose --profile app exec app node scripts/migrate.js
+docker compose --profile app exec app node scripts/seed.js
+```
+
 ## Проверка
 
 ```bash
