@@ -1,6 +1,8 @@
 import { createApp } from '../src/app.js';
 import { pool } from '../src/db.js';
+import { config } from '../src/config.js';
 import { startWorker } from '../src/worker.js';
+import { startLiveUpdates } from '../src/services/live.js';
 
 const listen = (app) => new Promise((resolve) => {
   const server = app.listen(0, '127.0.0.1', () => resolve(server));
@@ -8,17 +10,56 @@ const listen = (app) => new Promise((resolve) => {
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function startStack({ worker = false, workerIntervalMs = 120 } = {}) {
+export async function startStack({ worker = false, workerIntervalMs = 120, live = false } = {}) {
   const server = await listen(createApp());
   const base = `http://127.0.0.1:${server.address().port}`;
   const stopWorker = worker ? startWorker({ intervalMs: workerIntervalMs }) : null;
+  const stopLive = live ? await startLiveUpdates() : null;
   return {
     base,
     async stop() {
       if (stopWorker) await stopWorker();
+      if (stopLive) await stopLive();
       await new Promise((r) => server.close(r));
     },
   };
+}
+
+/**
+ * Подписка на живой канал витрины из теста.
+ * Node не умеет EventSource, поэтому поток разбирается вручную: это заодно проверяет,
+ * что формат событий именно тот, который ждёт браузер.
+ */
+export async function openStream(base, { onEvent } = {}) {
+  const controller = new AbortController();
+  const res = await fetch(`${base}/api/stream`, { signal: controller.signal });
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  const events = [];
+  let buffer = '';
+
+  (async () => {
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let sep;
+        while ((sep = buffer.indexOf('\n\n')) !== -1) {
+          const chunk = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          const type = chunk.match(/^event: (.+)$/m)?.[1];
+          const data = chunk.match(/^data: (.+)$/m)?.[1];
+          if (!type || !data) continue;
+          const event = { type, data: JSON.parse(data) };
+          events.push(event);
+          onEvent?.(event);
+        }
+      }
+    } catch { /* поток закрыт вместе с тестом */ }
+  })();
+
+  return { events, close: () => controller.abort() };
 }
 
 
@@ -44,6 +85,7 @@ async function truncateWithRetry(sql, attempts = 10) {
 /** Полная очистка данных. keysPerSku задаёт размер пула на каждый товар. */
 export async function resetData({ keysPerSku = 5 } = {}) {
   await truncateWithRetry('TRUNCATE ledger_entries, promocode_uses, payment_events, stock_keys, orders RESTART IDENTITY CASCADE');
+  await truncateWithRetry("DELETE FROM products WHERE sku LIKE 'TEST-%'");
 
   await pool.query(
     `INSERT INTO products (sku, name, type, price_minor, old_price_minor, currency, image, section, popularity)
@@ -103,4 +145,4 @@ export const paidEvent = (orderId, amount, extra = {}) => ({
   ...extra,
 });
 
-export { pool };
+export { pool, config };

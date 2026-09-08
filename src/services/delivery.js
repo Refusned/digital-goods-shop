@@ -40,18 +40,34 @@ export async function deliverOrder(orderId, { trigger = 'unknown' } = {}) {
       return { outcome: 'not_payable', status: order.status };
     }
 
-    // Берём свободный ключ. SKIP LOCKED: параллельные заказы не дерутся за одну строку.
-    const claimed = await client.query(
+    // Сначала забираем СВОЙ забронированный ключ: он был занят под этот заказ при оформлении,
+    // и покупатель вправе получить именно его. Просроченность брони здесь не проверяется:
+    // если ключ всё ещё числится за нами, значит его никто не перехватил.
+    let claimed = await client.query(
       `UPDATE stock_keys
-          SET order_id = $1, issued_at = now()
-        WHERE id = (SELECT id FROM stock_keys
-                     WHERE sku = $2 AND order_id IS NULL
-                     ORDER BY id
-                     FOR UPDATE SKIP LOCKED
-                     LIMIT 1)
+          SET order_id = $1, issued_at = now(), reserved_by_order = NULL, reserved_until = NULL
+        WHERE reserved_by_order = $1 AND order_id IS NULL
       RETURNING code`,
-      [orderId, order.sku],
+      [orderId],
     );
+
+    if (claimed.rowCount === 0) {
+      // Брони не осталось (истекла и ключ ушёл другому, либо оплата пришла без оформления).
+      // Берём любой свободный. SKIP LOCKED: параллельные заказы не дерутся за одну строку.
+      claimed = await client.query(
+        `UPDATE stock_keys
+            SET order_id = $1, issued_at = now(), reserved_by_order = NULL, reserved_until = NULL
+          WHERE id = (SELECT id FROM stock_keys
+                       WHERE sku = $2
+                         AND order_id IS NULL
+                         AND (reserved_by_order IS NULL OR reserved_until IS NULL OR reserved_until <= now())
+                       ORDER BY id
+                       FOR UPDATE SKIP LOCKED
+                       LIMIT 1)
+        RETURNING code`,
+        [orderId, order.sku],
+      );
+    }
 
     if (claimed.rowCount === 0) {
       return { outcome: 'out_of_stock', attempts: order.attempts + 1 };

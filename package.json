@@ -13,7 +13,8 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node scripts/test.js",
-    "race": "node scripts/race-check.js"
+    "race": "node scripts/race-check.js",
+    "stage2": "node scripts/stage2-check.js"
   },
   "dependencies": {
     "express": "^4.21.2",

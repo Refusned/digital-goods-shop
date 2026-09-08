@@ -17,10 +17,18 @@
       </button>
 
       <form class="search" role="search" onsubmit="return false">
-        <input type="search" placeholder="Игра, приложение или услуга..." aria-label="Поиск">
+        <input type="search" id="searchInput" placeholder="Игра, приложение или услуга..." aria-label="Поиск"
+               autocomplete="off">
         <button class="search__fav" type="button" aria-label="Избранное">&#9829;</button>
         <button class="search__go" type="submit" aria-label="Найти">&#9906;</button>
       </form>
+
+      <!-- Состояние живого канала: покупателю важно понимать, свежие ли цены он видит -->
+      <span class="live-dot" id="liveDot" title="Связь с витриной" aria-live="polite"></span>
+
+      <button class="cart-btn" id="cartBtn" aria-expanded="false" aria-controls="cartPanel">
+        Корзина <span class="cart-btn__count" id="cartCount">0</span>
+      </button>
 
       <button class="profile" aria-label="Профиль">&#128100;</button>
     </div>
@@ -136,24 +144,63 @@
     </section>
 
     <div class="section-head">
-      <h3>Популярные товары</h3>
+      <h3 id="gridTitle">Популярные товары</h3>
       <div class="tabs" id="tabs">
-        <button class="tab is-active" data-type="all">Донат</button>
+        <button class="tab is-active" data-type="">Все</button>
         <button class="tab" data-type="subscription">Подписки</button>
-        <button class="tab" data-type="topup">Предметы</button>
-        <button class="tab" data-type="giftcard">Аккаунты</button>
+        <button class="tab" data-type="topup">Пополнения</button>
+        <button class="tab" data-type="giftcard">Гифт-карты</button>
         <button class="tab" data-type="key">Ключи</button>
       </div>
     </div>
 
+    <!-- Фильтры живут в адресе страницы: ссылку с подборкой можно отправить и открыть напрямую -->
+    <section class="filters" id="filters">
+      <label class="filters__field">
+        <span>Цена от</span>
+        <input type="number" id="minPrice" min="0" step="100" placeholder="0" inputmode="numeric">
+      </label>
+      <label class="filters__field">
+        <span>до</span>
+        <input type="number" id="maxPrice" min="0" step="100" placeholder="любая" inputmode="numeric">
+      </label>
+      <label class="filters__check">
+        <input type="checkbox" id="inStock"> только в наличии
+      </label>
+      <label class="filters__field">
+        <span>Сортировка</span>
+        <select id="sort">
+          <option value="popular">по популярности</option>
+          <option value="price_asc">сначала дешёвые</option>
+          <option value="price_desc">сначала дорогие</option>
+          <option value="name">по названию</option>
+        </select>
+      </label>
+      <button class="btn-ghost" type="button" id="resetFilters">Сбросить</button>
+      <span class="filters__count" id="resultCount"></span>
+    </section>
+
     <!-- Интерактив 5: карточки приподнимаются и подсвечиваются при наведении -->
-    <section class="cards" id="cards" aria-live="polite"></section>
+    <section class="cards" id="cards" aria-live="polite" aria-busy="false"></section>
+
+    <div class="more-row">
+      <button class="btn-ghost" id="loadMore" hidden>Показать ещё</button>
+    </div>
 
     <p class="muted" style="margin-top:28px">
       Отзывы и футер по заданию не верстаются.
       <a href="admin.html" style="text-decoration:underline">Админка</a>
     </p>
   </main>
+
+  <!-- Корзина: цены и наличие в ней живут тем же живым каналом, что и витрина -->
+  <aside class="cart" id="cartPanel" hidden aria-label="Корзина">
+    <div class="cart__head">
+      <strong>Корзина</strong>
+      <button class="btn-ghost" type="button" id="cartClose" aria-label="Закрыть">&times;</button>
+    </div>
+    <div class="cart__body" id="cartBody"></div>
+  </aside>
 
   <script src="app.js"></script>
 </body>

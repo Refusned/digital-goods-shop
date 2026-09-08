@@ -19,6 +19,21 @@ export const config = {
   port: num(process.env.PORT, 3020),
   databaseUrl: process.env.DATABASE_URL || 'postgres://shop:shop@localhost:5443/shop',
   adminToken: process.env.ADMIN_TOKEN ?? '',
+  // Бронь ключа под заказ: сколько времени даётся на оформление и оплату.
+  reservation: {
+    ttlMs: num(process.env.RESERVATION_TTL_MS, 5 * 60_000),
+    // Уход на оплату продлевает бронь: время оплаты не должно съедать время оформления.
+    paymentTtlMs: num(process.env.RESERVATION_PAYMENT_TTL_MS, 3 * 60_000),
+    sweepIntervalMs: num(process.env.RESERVATION_SWEEP_MS, 1000),
+  },
+
+  // Живые обновления витрины.
+  live: {
+    enabled: process.env.LIVE_UPDATES_ENABLED !== '0',
+    batchMs: num(process.env.LIVE_BATCH_MS, 80),
+    heartbeatMs: num(process.env.LIVE_HEARTBEAT_MS, 15_000),
+  },
+
   worker: {
     enabled: process.env.WORKER_ENABLED !== '0',
     intervalMs: num(process.env.WORKER_INTERVAL_MS, 1000),

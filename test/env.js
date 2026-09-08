@@ -27,3 +27,9 @@ process.env.WORKER_ENABLED = '0';                  // воркер тесты п
 
 process.env.OUT_OF_STOCK_RETRY_MS = '200';
 process.env.ADMIN_TOKEN = 'test-token';
+
+// Второй этап: бронь в тестах короткая, иначе сценарий её истечения занимал бы минуты.
+process.env.RESERVATION_TTL_MS = process.env.RESERVATION_TTL_MS || '2000';
+process.env.RESERVATION_PAYMENT_TTL_MS = process.env.RESERVATION_PAYMENT_TTL_MS || '2000';
+process.env.LIVE_BATCH_MS = '30';
+process.env.LIVE_HEARTBEAT_MS = '2000';

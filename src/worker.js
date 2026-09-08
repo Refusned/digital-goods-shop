@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { log } from './logger.js';
 import { deliverOrder } from './services/delivery.js';
 import { applyEvent } from './services/payments.js';
+import { sweepExpiredReservations } from './services/reservations.js';
 
 /**
  * Фоновое восстановление: доводит систему до целевого состояния независимо от того,
@@ -20,6 +21,9 @@ export function startWorker({ intervalMs = config.worker.intervalMs } = {}) {
     running = true;
     try {
       await applyOrphanEvents();
+      // Просроченные брони снимаются первыми: товар должен вернуться в продажу как можно раньше,
+      // и только после этого имеет смысл разбирать очередь выдачи.
+      await sweepExpiredReservations();
       await pushStuckOrders(leaseMs);
     } catch (err) {
       log.error('worker.tick_failed', { error: err.message });

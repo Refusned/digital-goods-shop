@@ -7,6 +7,9 @@ import { applyPendingEvents, handlePaymentWebhook } from '../services/payments.j
 import { deliverOrder } from '../services/delivery.js';
 import { quotePromo } from '../services/promo.js';
 import { reconciliationReport } from '../services/reconcile.js';
+import { searchProducts, countProducts, SORT_KEYS } from '../services/search.js';
+import { addClient, clientCount } from '../services/live.js';
+import { extendReservation, releaseReservation, sweepExpiredReservations } from '../services/reservations.js';
 
 export const apiRouter = Router();
 
@@ -14,39 +17,63 @@ export const apiRouter = Router();
 
 apiRouter.get('/api/catalog', async (req, res, next) => {
   try {
-    const limit = Math.min(Number(req.query.limit) || 24, 100);
-    const section = req.query.section || null;
-    const { rows } = section
-      ? await pool.query(
-          `SELECT p.sku, p.name, p.type, p.price_minor, p.old_price_minor, p.currency, p.image, p.section,
-                  count(k.id) FILTER (WHERE k.order_id IS NULL)::int AS available
-             FROM products p LEFT JOIN stock_keys k ON k.sku = p.sku
-            WHERE p.is_active AND p.section = $1
-            GROUP BY p.sku
-            ORDER BY p.popularity DESC, p.sku
-            LIMIT $2`,
-          [section, limit],
-        )
-      : await pool.query(
-          `SELECT p.sku, p.name, p.type, p.price_minor, p.old_price_minor, p.currency, p.image, p.section,
-                  count(k.id) FILTER (WHERE k.order_id IS NULL)::int AS available
-             FROM products p LEFT JOIN stock_keys k ON k.sku = p.sku
-            WHERE p.is_active
-            GROUP BY p.sku
-            ORDER BY p.popularity DESC, p.sku
-            LIMIT $1`,
-          [limit],
-        );
-
-    res.json({
-      items: rows.map((r) => ({
-        sku: r.sku, name: r.name, type: r.type, section: r.section,
-        price: Number(r.price_minor), old_price: r.old_price_minor ? Number(r.old_price_minor) : null,
-        currency: r.currency, image: r.image, available: r.available,
-      })),
+    const result = await searchProducts({
+      section: req.query.section || null,
+      type: req.query.type || null,
+      limit: Math.min(Number(req.query.limit) || 24, 100),
+      sort: 'popular',
     });
+    res.json({ items: result.items });
   } catch (err) { next(err); }
 });
+
+/**
+ * Поиск и фильтры по каталогу.
+ * Отдельная ручка от витрины: у неё курсорная пагинация и свой набор фильтров,
+ * а витрина это её частный случай с сортировкой по популярности.
+ */
+apiRouter.get('/api/search', async (req, res, next) => {
+  try {
+    const params = {
+      q: req.query.q ?? '',
+      type: req.query.type || null,
+      section: req.query.section || null,
+      minPrice: req.query.min_price ?? null,
+      maxPrice: req.query.max_price ?? null,
+      inStock: req.query.in_stock === '1' || req.query.in_stock === 'true',
+      sort: SORT_KEYS.includes(req.query.sort) ? req.query.sort : 'popular',
+      cursor: req.query.cursor || null,
+      limit: req.query.limit,
+    };
+    const result = await searchProducts(params);
+    // Общее число нужно только на первой странице: при листании оно не меняется.
+    const counted = params.cursor ? null : await countProducts(params);
+    res.json({ ...result, total: counted?.total, total_capped: counted?.capped });
+  } catch (err) { next(err); }
+});
+
+/**
+ * Живой канал витрины.
+ *
+ * Server-Sent Events: поток в одну сторону со встроенным переподключением на стороне браузера.
+ * Заголовки отключают буферизацию, иначе прокси придержит события до заполнения буфера
+ * и «сразу» превратится в «когда-нибудь».
+ */
+apiRouter.get('/api/stream', (req, res) => {
+  res.writeHead(200, {
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-cache, no-transform',
+    connection: 'keep-alive',
+    'x-accel-buffering': 'no',
+  });
+  res.write('retry: 2000\n\n');
+  res.write(`event: hello\ndata: ${JSON.stringify({ server_time: new Date().toISOString() })}\n\n`);
+
+  const remove = addClient(res);
+  req.on('close', () => { remove(); res.end(); });
+});
+
+apiRouter.get('/api/stream/stats', (_req, res) => res.json({ clients: clientCount() }));
 
 // --- Промокод: предпросмотр, код не расходуется ------------------------------
 
@@ -64,6 +91,9 @@ apiRouter.post('/api/promo/quote', async (req, res, next) => {
 apiRouter.post('/api/orders', async (req, res, next) => {
   try {
     const idempotencyKey = req.get('Idempotency-Key') || req.body?.idempotency_key || null;
+    // Брошенные оформления не должны держать товар: перед попыткой брони снимаем просроченные.
+    // Иначе покупатель видел бы "раскупили" там, где товар уже свободен.
+    await sweepExpiredReservations({ limit: 20 });
     const created = await createOrder({
       sku: req.body?.sku,
       promocode: req.body?.promocode ?? null,
@@ -93,13 +123,33 @@ apiRouter.get('/api/orders/:id', async (req, res, next) => {
 /**
  * Эмуляция оплаты вместо эквайринга: шлёт вебхук по контракту на наш же эндпоинт,
  * ровно так же, как это делала бы платёжная система.
+ *
+ * Устойчивость к повторам: event_id ДЕТЕРМИНИРОВАН по ключу идемпотентности платежа.
+ * Двойной клик, кнопка "Назад", обновление страницы и повтор после обрыва связи дают
+ * одно и то же событие, а повторное событие с тем же event_id платёжный контур уже умеет
+ * отбрасывать. Без ключа поведение прежнее: каждое нажатие это отдельное событие.
  */
 apiRouter.post('/api/orders/:id/simulate-payment', async (req, res, next) => {
   try {
     const order = await getOrder(req.params.id);
     const success = req.body?.success !== false;
+    const key = req.get('Idempotency-Key') || req.body?.idempotency_key || null;
+
+    if (key) {
+      // Ключ платежа закрепляется за заказом: тот же ключ на другом заказе это ошибка клиента.
+      const claim = await pool.query(
+        `UPDATE orders SET payment_idempotency_key = $2, updated_at = now()
+          WHERE id = $1 AND (payment_idempotency_key IS NULL OR payment_idempotency_key = $2)
+        RETURNING payment_idempotency_key`,
+        [order.id, key],
+      ).catch((err) => (err.code === '23505' ? { rowCount: 0 } : Promise.reject(err)));
+      if (claim.rowCount === 0) {
+        return res.status(409).json({ error: 'payment_key_conflict', message: 'Этот ключ оплаты уже использован для другого заказа' });
+      }
+    }
+
     const payload = {
-      event_id: `evt_${Math.random().toString(36).slice(2, 12)}`,
+      event_id: key ? `evt_${key}`.slice(0, 128) : `evt_${Math.random().toString(36).slice(2, 12)}`,
       order_id: order.id,
       status: success ? 'paid' : 'failed',
       amount: Number(order.amount_minor),
@@ -113,7 +163,40 @@ apiRouter.post('/api/orders/:id/simulate-payment', async (req, res, next) => {
       body: JSON.stringify(payload),
     }).then((r) => r.json()).catch((e) => ({ error: e.message }));
 
-    res.json({ sent: payload, webhook_response: hook });
+    res.json({ sent: payload, webhook_response: hook, order: serializeOrder(await getOrder(order.id)) });
+  } catch (err) { next(err); }
+});
+
+/**
+ * Уход на оплату продлевает бронь.
+ * Время, потраченное на оформление, не должно съедать время на оплату,
+ * но и держать товар бесконечно нельзя: продление тоже ограничено сроком.
+ */
+apiRouter.post('/api/orders/:id/hold', async (req, res, next) => {
+  try {
+    const order = await getOrder(req.params.id);
+    if (order.status !== 'created') {
+      return res.json({ ...serializeOrder(order), extended: false });
+    }
+    const until = await extendReservation(order.id);
+    res.json({ ...serializeOrder(await getOrder(order.id)), extended: Boolean(until) });
+  } catch (err) { next(err); }
+});
+
+/** Отказ от оформления: товар возвращается в продажу сразу, не дожидаясь конца брони. */
+apiRouter.post('/api/orders/:id/cancel', async (req, res, next) => {
+  try {
+    const order = await getOrder(req.params.id);
+    if (order.status !== 'created') {
+      return res.status(409).json({ error: 'not_cancellable', status: order.status });
+    }
+    await releaseReservation(pool, order.id);
+    await pool.query(
+      `UPDATE orders SET status = 'expired', last_error = 'cancelled_by_buyer', reserved_until = NULL, updated_at = now()
+        WHERE id = $1 AND status = 'created'`,
+      [order.id],
+    );
+    res.json(serializeOrder(await getOrder(order.id)));
   } catch (err) { next(err); }
 });
 
