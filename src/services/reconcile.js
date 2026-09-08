@@ -32,14 +32,23 @@ export async function reconciliationReport({ limit = 100 } = {}) {
     [limit],
   );
 
+  // Остатки: только верх списка, отсортированный от дефицита.
+  //
+  // Сверка отвечает на вопрос "где болит", а не "покажи весь каталог". На каталоге в тысячи
+  // позиций полный список раздувал ответ до полумегабайта и вешал таблицу в админке,
+  // не добавляя ни одного факта: строки с полным складом не требуют внимания.
   const stock = await pool.query(
     `SELECT p.sku, p.name,
             count(*) FILTER (WHERE k.order_id IS NULL)::int AS free,
             count(*)::int AS total
        FROM products p LEFT JOIN stock_keys k ON k.sku = p.sku
       GROUP BY p.sku, p.name
-      ORDER BY free, p.sku`,
+      ORDER BY free, p.sku
+      LIMIT $1`,
+    [limit],
   );
+
+  const stockTotal = await pool.query('SELECT count(*)::int AS n FROM products');
 
   const promo = await pool.query(
     'SELECT code, type, value, max_uses, used_count FROM promocodes ORDER BY code');
@@ -52,6 +61,7 @@ export async function reconciliationReport({ limit = 100 } = {}) {
     delivered_not_paid: { count: deliveredNotPaid.rowCount, items: deliveredNotPaid.rows },
     payment_events_without_order: { count: orphanEvents.rowCount, items: orphanEvents.rows },
     stock: stock.rows,
+    stock_total: stockTotal.rows[0].n,
     promocodes: promo.rows,
     ledger: money,
     healthy: deliveredNotPaid.rowCount === 0 && money.balanced,

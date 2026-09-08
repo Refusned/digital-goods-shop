@@ -33,7 +33,14 @@ async function load() {
     ? '<p class="muted">Пусто, как и должно быть.</p>'
     : `<table><tbody>${report.delivered_not_paid.items.map((o) => `<tr><td>${o.id}</td><td>${o.code}</td></tr>`).join('')}</tbody></table>`;
 
+  // Сверка отдаёт верх списка по дефициту, а не весь каталог: на тысячах товаров
+  // полная таблица не помогает разбираться, а мешает.
+  const shownStock = report.stock.length;
+  const totalStock = report.stock_total ?? shownStock;
   document.getElementById('stock').innerHTML =
+    (totalStock > shownStock
+      ? `<p class="muted">Показаны ${shownStock} товаров с наименьшим остатком из ${totalStock}.</p>`
+      : '') +
     `<table><thead><tr><th>SKU</th><th>Товар</th><th>Свободно</th><th>Всего</th><th></th></tr></thead>
      <tbody>${report.stock.map((s) => `
        <tr>
