@@ -65,6 +65,25 @@ const paid = (orderId, amount) => ({
   order_id: orderId, status: 'paid', amount, currency: 'RUB', created_at: new Date().toISOString(),
 });
 
+/**
+ * Склад под сценарии.
+ *
+ * Скрипт не должен зависеть от того, что запускали до него: прогон сценариев второго этапа
+ * или предыдущий прогон этого же скрипта расходуют ключи, а во втором этапе заказ на товар
+ * без свободного ключа вообще не создаётся. Без этой подготовки проверки гонок падали бы
+ * не потому, что сломаны гарантии, а потому, что продавать нечего.
+ */
+const SCENARIO_SKUS = ['KEY-CS2-PRIME', 'KEY-GTA5', 'SUB-SPOTIFY-1M'];
+for (const sku of SCENARIO_SKUS) {
+  const { rows } = await db.query('SELECT COALESCE(available, 0) AS available FROM product_stock WHERE sku = $1', [sku]);
+  const available = Number(rows[0]?.available ?? 0);
+  if (available < 30) {
+    const codes = Array.from({ length: 30 - available }, (_, i) =>
+      `RACE-${sku}-${Date.now().toString(36)}-${i}`);
+    await post(`/api/admin/stock/${sku}/restock`, { codes });
+  }
+}
+
 // 1. Пятьдесят параллельных вебхуков по одному заказу.
 {
   const { body: order } = await post('/api/orders', { sku: 'KEY-CS2-PRIME' });
@@ -92,7 +111,11 @@ const paid = (orderId, amount) => ({
 // 3. Вебхук раньше заказа плюс устаревшее событие не по порядку.
 {
   const orderId = `ord_early_${Math.random().toString(36).slice(2, 8)}`;
-  const early = await post('/webhook/payment', paid(orderId, 1290));
+  // Сумма берётся из каталога, а не из константы: цену товара мог поменять кто угодно,
+  // а расхождение суммы это отдельный сценарий, который здесь только мешал бы.
+  const { body: catalog } = await get('/api/search?q=KEY-CS2-PRIME&limit=1');
+  const price = catalog.items[0]?.price;
+  const early = await post('/webhook/payment', paid(orderId, price));
   const { body: order } = await post('/api/orders', { sku: 'KEY-CS2-PRIME', order_id: orderId });
 
   const stale = await post('/webhook/payment', {
@@ -109,25 +132,72 @@ const paid = (orderId, amount) => ({
     { early: early.body.outcome, late_failed: stale.body.outcome, status: final.status, keys: keys.rows[0].n });
 }
 
-// 4. Пустой пул и восстановление после завоза.
+// 4. Нет свободных ключей: честный отказ до оплаты, восстановление после завоза.
+//
+// Во втором этапе ключ занимается при оформлении, поэтому заказ на товар без свободного ключа
+// не создаётся вовсе: покупатель узнаёт об этом ДО оплаты. Проверяем обе половины:
+// отказ на пустом складе и выдачу после завоза.
 {
   const sku = 'SUB-SPOTIFY-1M';
-  await db.query('UPDATE stock_keys SET order_id = NULL, issued_at = NULL WHERE sku = $1 AND order_id IS NULL', [sku]);
+  await db.query(
+    `UPDATE stock_keys SET reserved_by_order = NULL, reserved_until = NULL
+      WHERE sku = $1 AND order_id IS NULL`, [sku]);
   const free = await db.query('SELECT id FROM stock_keys WHERE sku = $1 AND order_id IS NULL', [sku]);
   await db.query('DELETE FROM stock_keys WHERE sku = $1 AND order_id IS NULL', [sku]);   // опустошаем пул
 
-  const { body: order } = await post('/api/orders', { sku });
-  await post('/webhook/payment', paid(order.id, order.amount));
-  const stuck = await waitStatus(order.id, ['out_of_stock'], 8000);
+  const refused = await post('/api/orders', { sku });
 
   const restockCode = `RACE-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
   await post(`/api/admin/stock/${sku}/restock`, { codes: [restockCode] });
+
+  const { body: order } = await post('/api/orders', { sku });
+  await post('/webhook/payment', paid(order.id, order.amount));
   const recovered = await waitStatus(order.id, ['delivered'], 15000);
   const keys = await db.query('SELECT count(*)::int AS n FROM stock_keys WHERE order_id = $1', [order.id]);
 
-  check('пустой пул -> восстановимое состояние -> после завоза ровно один ключ',
-    stuck.status === 'out_of_stock' && recovered.status === 'delivered' && keys.rows[0].n === 1,
-    { emptied: free.rowCount, stuck: stuck.status, recovered: recovered.status, code: maskCode(recovered.delivery?.code) });
+  check('пустой склад -> отказ до оплаты -> после завоза заказ выдан ровно одним ключом',
+    refused.status === 409 && refused.body.error === 'sold_out'
+      && recovered.status === 'delivered' && keys.rows[0].n === 1,
+    { emptied: free.rowCount, refused: refused.status, refused_error: refused.body.error,
+      recovered: recovered.status, code: maskCode(recovered.delivery?.code) });
+}
+
+// 4b. Оплата догнала заказ, который уже потерял свой ключ: восстановимое состояние и завоз.
+//
+// Это единственный оставшийся путь к состоянию "оплачено, а выдать нечем": бронь истекла,
+// ключ забрал другой покупатель, и ровно тогда доехал платёж.
+{
+  const sku = 'SUB-SPOTIFY-1M';
+  // Предыдущий сценарий оставил склад пустым: заводим ровно один ключ под этот.
+  await post(`/api/admin/stock/${sku}/restock`, {
+    codes: [`RACE-LOST-${Math.random().toString(36).slice(2, 8).toUpperCase()}`],
+  });
+  const { body: order } = await post('/api/orders', { sku });
+
+  // Срок брони истекает: в проде это минуты, здесь сдвигаем время явно.
+  await db.query(`UPDATE orders SET reserved_until = now() - interval '1 second' WHERE id = $1`, [order.id]);
+  await db.query(
+    `UPDATE stock_keys SET reserved_until = now() - interval '1 second' WHERE reserved_by_order = $1`, [order.id]);
+  const expired = await waitStatus(order.id, ['expired'], 10000);
+
+  // Освободившийся ключ забирает другой покупатель, склад снова пуст.
+  const { body: rival } = await post('/api/orders', { sku });
+  await post('/webhook/payment', paid(rival.id, rival.amount));
+  await waitStatus(rival.id, ['delivered'], 15000);
+
+  // И только теперь приходит опоздавший платёж по первому заказу.
+  await post('/webhook/payment', paid(order.id, order.amount));
+  const stuck = await waitStatus(order.id, ['out_of_stock'], 10000);
+
+  const lateCode = `RACE-LATE-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  await post(`/api/admin/stock/${sku}/restock`, { codes: [lateCode] });
+  const recovered = await waitStatus(order.id, ['delivered'], 15000);
+  const keys = await db.query('SELECT count(*)::int AS n FROM stock_keys WHERE order_id = $1', [order.id]);
+
+  check('опоздавший платёж не теряется: восстановимое состояние и выдача после завоза',
+    expired.status === 'expired' && stuck.status === 'out_of_stock'
+      && recovered.status === 'delivered' && keys.rows[0].n === 1,
+    { expired: expired.status, stuck: stuck.status, recovered: recovered.status });
 }
 
 // 5. Лимит промокода под параллельными запросами.

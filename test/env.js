@@ -29,7 +29,13 @@ process.env.OUT_OF_STOCK_RETRY_MS = '200';
 process.env.ADMIN_TOKEN = 'test-token';
 
 // Второй этап: бронь в тестах короткая, иначе сценарий её истечения занимал бы минуты.
-process.env.RESERVATION_TTL_MS = process.env.RESERVATION_TTL_MS || '2000';
-process.env.RESERVATION_PAYMENT_TTL_MS = process.env.RESERVATION_PAYMENT_TTL_MS || '2000';
+//
+// Значения задаются ЖЁСТКО, а не через "|| значение по умолчанию". Иначе тест берёт настройку
+// из .env разработчика: у того, кто скопировал .env.example с боевыми пятью минутами,
+// сценарии истечения брони уходят в таймаут, и падает то, что на самом деле работает.
+// Тестовое окружение обязано быть одинаковым у всех, кто запускает npm test.
+process.env.RESERVATION_TTL_MS = '2000';
+process.env.RESERVATION_PAYMENT_TTL_MS = '2000';
+process.env.RESERVATION_SWEEP_MS = '200';
 process.env.LIVE_BATCH_MS = '30';
 process.env.LIVE_HEARTBEAT_MS = '2000';
